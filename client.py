@@ -1,27 +1,37 @@
 import socket
 import CONSTS
 
+
+def divideMessage():
+    print("hello")
+
+
 tcp_socket = socket.create_connection(('localhost', 81))
 
 try:
     tcp_socket.sendall(str.encode("Max size"))
-    response = tcp_socket.recv(CONSTS.BUFFER_SIZE).decode()
-    print(response)
+    maxSize = tcp_socket.recv(CONSTS.BUFFER_SIZE).decode()
+    print(maxSize)
 finally:
     while True:
-
+        data = input()
         try:
-            data = input()
+
 
             if data == "exit":
                 break
 
-            while True:
-
-                tcp_socket.sendall(data.encode())
+            try:
+                encodedData = data.encode("utf-8")
+                if len(encodedData) <= int(maxSize):
+                    tcp_socket.sendall(encodedData)
+                else:
+                    divideMessage()
 
                 response = tcp_socket.recv(CONSTS.BUFFER_SIZE).decode()
                 print(response)
+            finally:
+                print("hey")
 
         finally:
             print("closed")
