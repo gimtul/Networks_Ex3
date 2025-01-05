@@ -4,6 +4,7 @@ import socket
 HOST = 'localhost'  # Server address
 PORT = 65432  # Port to connect to
 
+import random
 
 def send_message_with_window(conn, message, window_size, timeout, max_msg_size):
     chunks = [message[i:i + max_msg_size] for i in range(0, len(message), max_msg_size)]
@@ -15,6 +16,13 @@ def send_message_with_window(conn, message, window_size, timeout, max_msg_size):
     while start < len(chunks):
         for i in range(start, end):
             if not sent[i]:
+                # Simulate missing chunks by randomly skipping some chunks
+                """""
+                if random.random() < 0.2:  # 20% chance to skip sending the chunk
+                    print(f"Simulating loss of chunk {i}")
+                    continue
+                    """""
+
                 chunk = f"{i}:{chunks[i]}\n"  # Add sequence number and delimiter
                 print(f"Sending message: {chunk.strip()}")
                 conn.send(chunk.encode())
@@ -24,15 +32,19 @@ def send_message_with_window(conn, message, window_size, timeout, max_msg_size):
             conn.settimeout(timeout)
             try:
                 data = conn.recv(1024).decode()
-                print(f"Received data: {data}")
-
-                # Process the data by splitting it into individual ACKs
-                while "ACK" in data:
-                    ack_index = data.find("ACK")
+                if "ACK" in data:
                     print(f"ACK received for chunk {start + ack_received}")
                     sent[start + ack_received] = True
                     ack_received += 1
-                    data = data[ack_index + 3:]  # Remove the processed "ACK"
+                elif "RETRY" in data:
+                    # If the server asks for missing chunks, retransmit them
+                    missing_chunks = data.split(":")[1].strip().split(',')
+                    print(f"Server requests retransmission for chunks: {missing_chunks}")
+                    for chunk_num in missing_chunks:
+                        chunk_num = int(chunk_num)
+                        chunk = f"{chunk_num}:{chunks[chunk_num]}\n"
+                        conn.send(chunk.encode())
+                    continue  # After retransmission, wait for the next ACK
 
             except socket.timeout:
                 print(f"Timeout waiting for ACK for chunk {start + ack_received}")

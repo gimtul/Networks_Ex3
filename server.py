@@ -4,6 +4,7 @@ import socket
 HOST = 'localhost'  # Host address
 PORT = 65432         # Port to listen on
 
+received_chunks = {}
 
 def read_config(file_path):
     try:
@@ -19,6 +20,7 @@ def read_config(file_path):
     except Exception as e:
         print(f"Error reading configuration file: {e}")
         return None
+
 
 
 def get_server_config():
@@ -71,6 +73,7 @@ def server_program():
         with conn:
             print(f"Connected by {addr}")
             buffer = ""  # Buffer to store incomplete data
+            expected_seq_num = 0
             while True:
                 data = conn.recv(1024).decode()
                 if not data:
@@ -86,8 +89,24 @@ def server_program():
                     elif message.lower() == "request_timeout":
                         conn.send(str(timeout).encode())
                     elif ":" in message:
+                        # Parse the sequence number and the chunk
                         seq_num, chunk = message.split(":", 1)
+                        seq_num = int(seq_num)
                         print(f"Received chunk {seq_num}: {chunk}")
+                        # Store the chunk in the received_chunks dictionary
+                        received_chunks[seq_num] = chunk
+                        # Check for missing chunks
+                        missing_chunks = [i for i in range(expected_seq_num, seq_num) if i not in received_chunks]
+                        if missing_chunks:
+                            # If missing chunks exist, ask for retransmission of the missing chunks
+                            print(f"Missing chunks: {missing_chunks}")
+                            conn.send(f"RETRY:{','.join(map(str, missing_chunks))}\n".encode())
+                        else:
+                            # Once all chunks up to the current seq_num are received, acknowledge the chunk
+                            print(f"ACK for chunk {seq_num}")
+                            conn.send("ACK\n".encode())
+                            # Move to the next expected chunk
+                            expected_seq_num = seq_num + 1
                         conn.send("ACK".encode())
                     elif message.lower() == "exit":
                         print("Client requested to exit. Closing connection.")
