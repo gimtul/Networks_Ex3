@@ -18,30 +18,34 @@ def send_message_with_window(conn, message, window_size, timeout, max_msg_size):
     end = min(window_size, len(chunks))  # Initial window
     sent = [False] * len(chunks)  # To track which chunks are sent and acknowledged
 
-    # Send initial window of messages
     while start < len(chunks):
+        # Send chunks in the current window
         for i in range(start, end):
-            chunk = chunks[i]
-            print(f"Sending message: {chunk}")
-            conn.send(chunk.encode())  # Send chunk
+            if not sent[i]:  # Only send chunks that haven't been acknowledged
+                chunk = chunks[i]
+                print(f"Sending message: {chunk}")
+                conn.send(chunk.encode())  # Send chunk
 
         # Wait for acknowledgments
-        ack_received = False
-        while not ack_received:
+        ack_received = 0  # To track how many ACKs we've received
+        while ack_received < (end - start):
             conn.settimeout(timeout)  # Set timeout for acknowledgment
             try:
                 data = conn.recv(1024).decode()
                 if data == "ACK":
-                    print(f"ACK received for chunk {start + 1}")
-                    sent[start] = True  # Mark chunk as acknowledged
-                    ack_received = True
+                    print(f"ACK received for chunk {start + 1 + ack_received}")
+                    sent[start + ack_received] = True  # Mark this chunk as acknowledged
+                    ack_received += 1  # Increment the number of acknowledged chunks
             except socket.timeout:
-                print(f"Timeout waiting for ACK for chunk {start + 1}")
-                print("Retransmitting chunk...")
-                conn.send(chunks[start].encode())  # Retransmit the chunk
+                print(f"Timeout waiting for ACK for chunk {start + 1 + ack_received}")
+                print("Retransmitting unacknowledged chunks...")
+                # Retransmit only the unacknowledged chunks
+                for i in range(start, end):
+                    if not sent[i]:  # Retransmit only the chunks that were not acknowledged
+                        conn.send(chunks[i].encode())  # Retransmit the chunk
 
         # Slide the window
-        start += 1
+        start += ack_received
         end = min(start + window_size, len(chunks))
 
     print("All messages sent and acknowledged.")
