@@ -1,4 +1,6 @@
+import random
 import socket
+import time
 
 # Server settings
 HOST = 'localhost'  # Host address
@@ -104,6 +106,12 @@ def server_program():
                         else:
                             # Once all chunks up to the current seq_num are received, acknowledge the chunk
                             print(f"ACK for chunk {seq_num}")
+                            #test for timeout
+                            """""
+                            delay = random.randint(1, 5)
+                            print(f"Delaying for {delay} seconds...")
+                            time.sleep(delay)
+                            """""
                             conn.send("ACK\n".encode())
                             # Move to the next expected chunk
                             expected_seq_num = seq_num + 1
